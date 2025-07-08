@@ -7,12 +7,11 @@
     
     <!-- Mostrar tabla cuando hay datos -->
     <div v-if="csvStore.hasData" class="table-container">
-      <!-- Constructor de consultas -->
-      <QueryBuilder @queryResults="handleQueryResults" />
+      <!-- Se eliminó la referencia a QueryBuilder -->
       
       <!-- Tabla principal -->
       <div class="data-table">
-        <h3>{{ filteredData.length > 0 ? 'Resultados Filtrados' : 'Todos los Datos' }}</h3>
+        <h3>Datos del CSV</h3>
         <div class="table-info">
           <p><strong>Mostrando:</strong> {{ displayData.length }} de {{ totalRows }} filas</p>
           <p><strong>Archivo:</strong> {{ csvStore.fileName }}</p>
@@ -78,24 +77,21 @@
 import { ref, computed } from 'vue'
 import { useCSVStore } from '@/stores/csvStore'
 import FileUpload from '@/components/FileUpload.vue'
-import QueryBuilder from '@/components/QueryBuilder.vue'
+// Se eliminó la importación de QueryBuilder
 
 const csvStore = useCSVStore()
 
 // Datos reactivos
-const filteredData = ref<Record<string, string>[]>([])
 const currentPage = ref(1)
 const rowsPerPage = 50
 
 // Computed properties
 const headers = computed(() => csvStore.data?.headers || [])
 
-const totalRows = computed(() => {
-  return filteredData.value.length > 0 ? filteredData.value.length : csvStore.rowCount
-})
+const totalRows = computed(() => csvStore.rowCount)
 
 const displayData = computed(() => {
-  const data = filteredData.value.length > 0 ? filteredData.value : csvStore.data?.rows || []
+  const data = csvStore.data?.rows || []
   const start = (currentPage.value - 1) * rowsPerPage
   const end = start + rowsPerPage
   return data.slice(start, end)
@@ -105,11 +101,7 @@ const totalPages = computed(() => {
   return Math.ceil(totalRows.value / rowsPerPage)
 })
 
-// Funciones
-const handleQueryResults = (results: Record<string, string>[]) => {
-  filteredData.value = results
-  currentPage.value = 1 // Resetear a la primera página
-}
+// Se eliminó la función handleQueryResults
 </script>
 
 <style scoped>

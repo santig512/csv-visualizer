@@ -7,14 +7,12 @@
     
     <!-- Mostrar gráficos cuando hay datos -->
     <div v-if="csvStore.hasData" class="charts-container">
-      <!-- Constructor de consultas -->
-      <QueryBuilder @queryResults="handleQueryResults" />
       
       <div class="charts-grid">
         <!-- Gráfico de líneas -->
         <LineChart 
-          :title="filteredData.length > 0 ? 'Gráfico de Líneas (Filtrado)' : 'Gráfico de Líneas'"
-          :data="chartData"
+          title="Gráfico de Líneas"
+          :data="csvStore.data"
         />
         
         <!-- Aquí irán más gráficos -->
@@ -27,8 +25,7 @@
       <!-- Información del archivo -->
       <div class="file-info">
         <p><strong>Archivo:</strong> {{ csvStore.fileName }}</p>
-        <p><strong>Datos originales:</strong> {{ csvStore.rowCount }} filas</p>
-        <p v-if="filteredData.length > 0"><strong>Datos filtrados:</strong> {{ filteredData.length }} filas</p>
+        <p><strong>Filas:</strong> {{ csvStore.rowCount }} | <strong>Columnas:</strong> {{ csvStore.columnCount }}</p>
         <button @click="clearData" class="clear-btn">Limpiar datos</button>
       </div>
     </div>
@@ -36,36 +33,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import { useCSVStore } from '@/stores/csvStore'
 import FileUpload from '@/components/FileUpload.vue'
 import LineChart from '@/components/LineChart.vue'
-import QueryBuilder from '@/components/QueryBuilder.vue'
 
 const csvStore = useCSVStore()
 
-// Datos reactivos
-const filteredData = ref<Record<string, string>[]>([])
-
-// Computed properties
-const chartData = computed(() => {
-  if (filteredData.value.length > 0) {
-    return {
-      headers: csvStore.data?.headers || [],
-      rows: filteredData.value
-    }
-  }
-  return csvStore.data
-})
-
-// Funciones
-const handleQueryResults = (results: Record<string, string>[]) => {
-  filteredData.value = results
-}
-
 const clearData = () => {
   csvStore.clearData()
-  filteredData.value = []
 }
 </script>
 
