@@ -1,6 +1,6 @@
 <template>
   <div class="file-upload">
-    <div class="upload-area" :class="{ 'dragging': isDragging }">
+    <div class="upload-area" :class="{ 'dragging': isDragging }" @dragenter="handleDragEnter" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop">
       <input
         type="file"
         ref="fileInput"
@@ -12,19 +12,11 @@
       <div class="upload-content">
         <div class="upload-icon">📁</div>
         <h3>Subir archivo CSV</h3>
-        <p>Haz clic para seleccionar o arrastra un archivo CSV aquí</p>
+        <p>Arrastra un archivo CSV aquí o haz clic para seleccionar</p>
         <button @click="openFileDialog" class="upload-btn">
           Seleccionar archivo
         </button>
       </div>
-    </div>
-
-    <!-- Mostrar información del archivo -->
-    <div v-if="csvStore.fileName" class="file-info">
-      <p><strong>Archivo:</strong> {{ csvStore.fileName }}</p>
-      <p><strong>Filas:</strong> {{ csvStore.rowCount }}</p>
-      <p><strong>Columnas:</strong> {{ csvStore.columnCount }}</p>
-      <button @click="clearFile" class="clear-btn">Limpiar</button>
     </div>
 
     <!-- Mostrar error -->
@@ -32,7 +24,7 @@
       {{ csvStore.error }}
     </div>
 
-    <!-- Mostrar loading -->
+    <!-- Indicador de carga -->
     <div v-if="csvStore.isLoading" class="loading">
       Procesando archivo...
     </div>
@@ -45,7 +37,7 @@ import { useCSVStore } from '@/stores/csvStore'
 import { parseCSV } from '@/utils/csvParser'
 
 const csvStore = useCSVStore()
-const fileInput = ref<HTMLInputElement>()
+const fileInput = ref<HTMLInputElement | null>(null)
 const isDragging = ref(false)
 
 const openFileDialog = () => {
@@ -68,95 +60,105 @@ const processFile = async (file: File) => {
   try {
     const text = await file.text()
     const csvData = parseCSV(text)
-    csvStore.setData(csvData, file.name)
-  } catch (error) {
-    csvStore.setError(`Error al procesar el archivo: ${(error as Error).message}`)
+    csvStore.addCSVFile(csvData, file.name)
+    
+    // Limpiar input para permitir subir el mismo archivo otra vez
+    if (fileInput.value) fileInput.value.value = ''
+  } catch (error: any) {
+    csvStore.setError(`Error al procesar el archivo: ${error.message}`)
   } finally {
     csvStore.setLoading(false)
   }
 }
 
-const clearFile = () => {
-  csvStore.clearData()
-  if (fileInput.value) {
-    fileInput.value.value = ''
+// Funciones de arrastrar y soltar
+const handleDragEnter = (event: DragEvent) => {
+  event.preventDefault()
+  isDragging.value = true
+}
+
+const handleDragOver = (event: DragEvent) => {
+  event.preventDefault()
+  isDragging.value = true
+}
+
+const handleDragLeave = () => {
+  isDragging.value = false
+}
+
+const handleDrop = (event: DragEvent) => {
+  event.preventDefault()
+  isDragging.value = false
+  
+  const file = event.dataTransfer?.files[0]
+  if (file) {
+    processFile(file)
+  } else {
+    csvStore.setError('Por favor, arrastra un archivo CSV válido.')
   }
 }
 </script>
 
 <style scoped>
 .file-upload {
-  max-width: 500px;
-  margin: 0 auto;
+  margin-bottom: 1.5rem;
 }
 
 .upload-area {
   border: 2px dashed #ccc;
   border-radius: 8px;
-  padding: 2rem;
+  padding: 1.5rem;
   text-align: center;
-  transition: border-color 0.3s;
-  cursor: pointer;
+  background-color: #f8f9fa;
+  transition: all 0.3s ease;
 }
 
-.upload-area:hover,
 .upload-area.dragging {
-  border-color: #2c3e50;
+  background-color: #e9ecef;
+  border-color: #6c757d;
 }
 
 .upload-content {
-  pointer-events: none;
+  max-width: 400px;
+  margin: 0 auto;
 }
 
 .upload-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
 }
 
 .upload-btn {
-  background-color: #2c3e50;
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 4px;
-  cursor: pointer;
-  pointer-events: auto;
-}
-
-.upload-btn:hover {
-  background-color: #34495e;
-}
-
-.file-info {
-  margin-top: 1rem;
-  padding: 1rem;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-}
-
-.clear-btn {
-  background-color: #dc3545;
+  background-color: #4e73df;
   color: white;
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 4px;
   cursor: pointer;
-  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  margin-top: 1rem;
+  transition: background-color 0.3s;
+}
+
+.upload-btn:hover {
+  background-color: #2e59d9;
 }
 
 .error {
-  margin-top: 1rem;
-  padding: 1rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
   background-color: #f8d7da;
   color: #721c24;
   border-radius: 4px;
+  font-size: 0.9rem;
 }
 
 .loading {
-  margin-top: 1rem;
-  padding: 1rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
   background-color: #d1ecf1;
   color: #0c5460;
   border-radius: 4px;
+  font-size: 0.9rem;
 }
 </style>
