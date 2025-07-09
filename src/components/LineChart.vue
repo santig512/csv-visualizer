@@ -4,7 +4,7 @@
       <h3>{{ title }}</h3>
     </div>
 
-    <!-- Panel de checkboxes -->
+    <!-- Panel de checkboxes (mantener igual pero más compacto) -->
     <div class="checkbox-container">
       <!-- Columna X (solo se puede seleccionar una) -->
       <div class="checkbox-section">
@@ -59,6 +59,7 @@
       <p v-else>No hay datos disponibles para mostrar</p>
     </div>
 
+    <!-- GRÁFICO MUCHO MÁS GRANDE -->
     <div v-else class="chart-container">
       <Line :data="chartData" :options="chartOptions" />
     </div>
@@ -66,7 +67,7 @@
     <!-- Estadísticas -->
     <div v-if="canRender" class="chart-stats">
       <div class="stat">
-        <strong>Puntos:</strong> {{ processedDataPoints.length }}
+        <strong>Puntos:</strong> {{ dataPoints.length }}
       </div>
       <div v-for="column in selectedYColumns" :key="`stat-${column}`" class="stat-group">
         <div class="stat-header">
@@ -124,7 +125,6 @@ const props = defineProps<{
 // Datos reactivos
 const xColumn = ref('')
 const selectedYColumns = ref<string[]>([])
-const MAX_POINTS = 14 // Definimos exactamente 14 puntos
 
 // Paleta de colores para series
 const chartColors = [
@@ -165,6 +165,7 @@ const numericHeaders = computed(() => {
   })
 })
 
+// USAMOS TODOS LOS PUNTOS DEL CSV (sin limitar a 14)
 const dataPoints = computed(() => {
   if (!csvStore.data || !xColumn.value || selectedYColumns.value.length === 0) return []
   
@@ -184,47 +185,25 @@ const dataPoints = computed(() => {
   })
 })
 
-// Función para reducir los datos a exactamente 14 puntos para el gráfico
-const processedDataPoints = computed(() => {
-  const points = dataPoints.value
-  
-  if (points.length <= MAX_POINTS) {
-    // Si tenemos 14 o menos puntos, los usamos todos
-    return points
-  }
-  
-  // Si tenemos más de 14 puntos, necesitamos muestrear
-  const result: Record<string, any>[] = []
-  const step = points.length / MAX_POINTS
-  
-  // Seleccionamos 14 puntos distribuidos uniformemente
-  for (let i = 0; i < MAX_POINTS; i++) {
-    const index = Math.min(Math.floor(i * step), points.length - 1)
-    result.push(points[index])
-  }
-  
-  return result
-})
-
 const canRender = computed(() => {
-  return xColumn.value && selectedYColumns.value.length > 0 && processedDataPoints.value.length > 0
+  return xColumn.value && selectedYColumns.value.length > 0 && dataPoints.value.length > 0
 })
 
 // Funciones para obtener estadísticas por columna
 function getMinValue(column: string): number {
-  const points = dataPoints.value // Usamos todos los puntos para estadísticas
+  const points = dataPoints.value
   if (points.length === 0) return 0
   return Math.min(...points.map(p => p[column]))
 }
 
 function getMaxValue(column: string): number {
-  const points = dataPoints.value // Usamos todos los puntos para estadísticas
+  const points = dataPoints.value
   if (points.length === 0) return 0
   return Math.max(...points.map(p => p[column]))
 }
 
 function getAvgValue(column: string): number {
-  const points = dataPoints.value // Usamos todos los puntos para estadísticas
+  const points = dataPoints.value
   if (points.length === 0) return 0
   const sum = points.reduce((acc, p) => acc + p[column], 0)
   return sum / points.length
@@ -233,21 +212,21 @@ function getAvgValue(column: string): number {
 // Configuración del gráfico Chart.js
 const chartData = computed((): ChartData<'line'> => {
   return {
-    labels: processedDataPoints.value.map(p => p.label),
+    labels: dataPoints.value.map(p => p.label),
     datasets: selectedYColumns.value.map((column, index) => {
       const color = getSeriesColor(column)
       return {
         label: column,
-        data: processedDataPoints.value.map(p => p[column]),
+        data: dataPoints.value.map(p => p[column]),
         borderColor: color,
-        backgroundColor: `${color}20`,
-        borderWidth: 4,
+        backgroundColor: `${color}25`,
+        borderWidth: 5, // Líneas más gruesas
         pointBackgroundColor: color,
         pointBorderColor: '#fff',
-        pointBorderWidth: 2,
-        pointRadius: 7,
-        pointHoverRadius: 9,
-        tension: 0.2,
+        pointBorderWidth: 3,
+        pointRadius: 8, // Puntos más grandes
+        pointHoverRadius: 12, // Hover más grande
+        tension: 0.3, // Curvas más suaves
         fill: false
       }
     })
@@ -255,6 +234,10 @@ const chartData = computed((): ChartData<'line'> => {
 })
 
 const chartOptions = computed((): ChartOptions<'line'> => {
+  // Mostrar todos los puntos del CSV, ajustando ticks según cantidad
+  const dataLength = dataPoints.value.length
+  const suggestedXTicks = dataLength <= 30 ? dataLength : Math.min(30, Math.ceil(dataLength / 3))
+  
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -263,8 +246,11 @@ const chartOptions = computed((): ChartOptions<'line'> => {
         display: true,
         position: 'top',
         labels: {
+          usePointStyle: true,
+          pointStyle: 'circle',
+          boxWidth: 15,
           font: {
-            size: 14
+            size: 16 // Fuente más grande
           }
         }
       },
@@ -274,12 +260,13 @@ const chartOptions = computed((): ChartOptions<'line'> => {
         bodyColor: '#fff',
         borderColor: '#666',
         borderWidth: 1,
-        padding: 12,
+        padding: 15,
         titleFont: {
-          size: 14
+          size: 16,
+          weight: 'bold'
         },
         bodyFont: {
-          size: 14
+          size: 16
         },
         callbacks: {
           label: (context) => {
@@ -294,24 +281,24 @@ const chartOptions = computed((): ChartOptions<'line'> => {
           display: true,
           text: xColumn.value,
           font: {
-            size: 16,
+            size: 18,
             weight: 'bold'
           },
-          padding: 10
+          padding: 20
         },
         grid: {
           color: 'rgba(0, 0, 0, 0.1)',
           display: true,
-          tickLength: 10,
-          lineWidth: 1
+          tickLength: 12,
+          lineWidth: 1.5
         },
         ticks: {
           font: {
-            size: 12
+            size: 14
           },
-          // Configurar para mostrar exactamente 14 ticks en el eje X
-          maxTicksLimit: 14,
-          maxRotation: 45
+          maxTicksLimit: suggestedXTicks,
+          maxRotation: 45,
+          color: '#555'
         }
       },
       y: {
@@ -319,24 +306,22 @@ const chartOptions = computed((): ChartOptions<'line'> => {
           display: selectedYColumns.value.length === 1,
           text: selectedYColumns.value.length === 1 ? selectedYColumns.value[0] : '',
           font: {
-            size: 16,
+            size: 18,
             weight: 'bold'
           },
-          padding: 10
+          padding: 20
         },
         grid: {
           color: 'rgba(0, 0, 0, 0.1)',
           display: true,
-         
-          tickLength: 10,
-          lineWidth: 1
+          tickLength: 12,
+          lineWidth: 1.5
         },
         ticks: {
           font: {
-            size: 12
+            size: 14
           },
-          // Configurar para mostrar aproximadamente 14 ticks en el eje Y
-          maxTicksLimit: 14,
+          color: '#555',
           callback: function(value) {
             return formatNumber(Number(value))
           }
@@ -348,15 +333,24 @@ const chartOptions = computed((): ChartOptions<'line'> => {
       mode: 'index'
     },
     animation: {
-      duration: 750,
+      duration: 800,
       easing: 'easeOutQuart'
     },
     layout: {
       padding: {
-        top: 20,
-        right: 25,
-        bottom: 20,
-        left: 25
+        top: 25,
+        right: 30,
+        bottom: 25,
+        left: 30
+      }
+    },
+    elements: {
+      point: {
+        hitRadius: 15 // Área de detección más grande
+      },
+      line: {
+        borderJoinStyle: 'round',
+        capBezierPoints: true
       }
     }
   }
@@ -415,9 +409,9 @@ watch(() => numericHeaders.value, (newNumericHeaders) => {
 <style scoped>
 .line-chart {
   background: white;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
   width: 100%;
   max-width: 100%;
 }
@@ -431,13 +425,14 @@ watch(() => numericHeaders.value, (newNumericHeaders) => {
 
 .chart-header h3 {
   margin: 0;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
+  color: #333;
 }
 
 .checkbox-container {
   display: flex;
   gap: 2rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem; /* Reducido para dar más espacio al gráfico */
 }
 
 .checkbox-section {
@@ -456,7 +451,7 @@ watch(() => numericHeaders.value, (newNumericHeaders) => {
   border-radius: 6px;
   padding: 0.75rem;
   border: 1px solid #e9ecef;
-  max-height: 180px;
+  max-height: 140px; /* Más compacto para dar espacio al gráfico */
   overflow-y: auto;
 }
 
@@ -502,23 +497,23 @@ watch(() => numericHeaders.value, (newNumericHeaders) => {
 }
 
 .color-indicator {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   display: inline-block;
 }
 
-/* Contenedor del gráfico ampliado con tamaño cuadrado y cuadrícula 14x14 */
+/* GRÁFICO GIGANTE */
 .chart-container {
   width: 100%;
-  height: 0;
-  padding-bottom: 80%;
+  height: 800px !important; /* ALTURA FIJA MUY GRANDE */
   position: relative;
-  margin: 1rem 0;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  margin: 1.5rem 0;
+  border: 3px solid #d0d0d0;
+  border-radius: 12px;
   overflow: hidden;
-  background-color: #fcfcfc;
+  background-color: #fafafa;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.08);
 }
 
 .chart-container canvas {
@@ -531,25 +526,20 @@ watch(() => numericHeaders.value, (newNumericHeaders) => {
 
 .chart-message {
   text-align: center;
-  padding: 6rem 2rem;
   color: #666;
   font-style: italic;
   background-color: #f8f9fa;
-  border-radius: 8px;
-  border: 1px dashed #ddd;
-  height: 0;
-  padding-bottom: 80%;
-  position: relative;
+  border-radius: 12px;
+  border: 2px dashed #ccc;
+  height: 800px; /* Misma altura que el gráfico */
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .chart-message p {
-  position: absolute;
-  width: 100%;
-  text-align: center;
-  font-size: 1.2rem;
+  font-size: 1.4rem;
+  color: #999;
 }
 
 .chart-stats {
@@ -565,31 +555,33 @@ watch(() => numericHeaders.value, (newNumericHeaders) => {
 
 .stat {
   flex: 1 1 100%;
-  font-size: 1rem;
-  padding: 0.8rem;
+  font-size: 1.1rem;
+  padding: 1rem;
   background-color: white;
   border-radius: 6px;
   text-align: center;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  font-weight: 600;
 }
 
 .stat-group {
   flex: 1;
-  min-width: 180px;
+  min-width: 200px;
   background-color: white;
-  border-radius: 4px;
-  padding: 0.8rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  border-radius: 6px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
 }
 
 .stat-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.6rem;
-  font-size: 0.95rem;
-  border-bottom: 1px solid #e9ecef;
-  padding-bottom: 0.4rem;
+  margin-bottom: 0.8rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 0.5rem;
 }
 
 .stat-values {
@@ -598,9 +590,10 @@ watch(() => numericHeaders.value, (newNumericHeaders) => {
 }
 
 .stat-value {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   color: #495057;
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.4rem;
+  font-weight: 500;
 }
 
 @media (max-width: 768px) {
@@ -610,11 +603,11 @@ watch(() => numericHeaders.value, (newNumericHeaders) => {
   }
   
   .chart-container {
-    padding-bottom: 100%; /* Cuadrado completo en móviles */
+    height: 600px !important; /* Más pequeño pero aún grande en móviles */
   }
   
   .chart-message {
-    padding-bottom: 100%;
+    height: 600px;
   }
   
   .chart-stats {
