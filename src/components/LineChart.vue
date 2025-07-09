@@ -53,6 +53,18 @@
       </div>
     </div>
 
+    <!-- INFORMACIÓN SOBRE FILTRO -->
+    <div v-if="props.filteredData && props.filteredData.length > 0" class="filter-info">
+      <div class="filter-badge">
+        📊 Mostrando datos filtrados: {{ props.filteredData.length }} registros
+      </div>
+    </div>
+    <div v-else-if="props.filteredData && props.filteredData.length === 0" class="filter-info">
+      <div class="filter-badge no-data">
+        ⚠️ No hay datos para el filtro seleccionado
+      </div>
+    </div>
+
     <div v-if="!canRender" class="chart-message">
       <p v-if="!xColumn">Selecciona una columna para el eje X</p>
       <p v-else-if="selectedYColumns.length === 0">Selecciona al menos una columna para graficar</p>
@@ -117,9 +129,10 @@ ChartJS.register(
 
 const csvStore = useCSVStore()
 
-// Props
+// Props - AGREGAR filteredData
 const props = defineProps<{
   title?: string
+  filteredData?: Record<string, string>[]
 }>()
 
 // Datos reactivos
@@ -128,18 +141,9 @@ const selectedYColumns = ref<string[]>([])
 
 // Paleta de colores para series
 const chartColors = [
-  '#e74c3c', // Rojo
-  '#3498db', // Azul
-  '#2ecc71', // Verde
-  '#f39c12', // Naranja
-  '#9b59b6', // Morado
-  '#1abc9c', // Verde azulado
-  '#34495e', // Azul oscuro
-  '#e67e22', // Naranja oscuro
-  '#16a085', // Verde oscuro
-  '#8e44ad', // Morado oscuro
-  '#d35400', // Rojo oscuro
-  '#2980b9'  // Azul oscuro
+  '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
+  '#1abc9c', '#34495e', '#e67e22', '#16a085', '#8e44ad',
+  '#d35400', '#2980b9'
 ]
 
 // Obtener color para una serie específica
@@ -165,18 +169,22 @@ const numericHeaders = computed(() => {
   })
 })
 
-// USAMOS TODOS LOS PUNTOS DEL CSV (sin limitar a 14)
+// USAR DATOS FILTRADOS SI ESTÁN DISPONIBLES
 const dataPoints = computed(() => {
   if (!csvStore.data || !xColumn.value || selectedYColumns.value.length === 0) return []
   
-  return csvStore.data.rows.map(row => {
+  // Usar filteredData si está disponible, sino usar todos los datos
+  const sourceData = props.filteredData && props.filteredData.length > 0 
+    ? props.filteredData 
+    : csvStore.data.rows
+  
+  return sourceData.map(row => {
     const point: Record<string, any> = {
       label: row[xColumn.value] || ''
     }
     
     selectedYColumns.value.forEach(column => {
       const rawValue = row[column] || '0'
-      // Limpiar formato numérico (puntos como separadores de miles y comas para decimales)
       const cleanValue = rawValue.toString().replace(/\./g, '').replace(/,/g, '.')
       point[column] = parseFloat(cleanValue) || 0
     })
@@ -220,13 +228,13 @@ const chartData = computed((): ChartData<'line'> => {
         data: dataPoints.value.map(p => p[column]),
         borderColor: color,
         backgroundColor: `${color}25`,
-        borderWidth: 5, // Líneas más gruesas
+        borderWidth: 5,
         pointBackgroundColor: color,
         pointBorderColor: '#fff',
         pointBorderWidth: 3,
-        pointRadius: 8, // Puntos más grandes
-        pointHoverRadius: 12, // Hover más grande
-        tension: 0.3, // Curvas más suaves
+        pointRadius: 8,
+        pointHoverRadius: 12,
+        tension: 0.3,
         fill: false
       }
     })
@@ -234,7 +242,6 @@ const chartData = computed((): ChartData<'line'> => {
 })
 
 const chartOptions = computed((): ChartOptions<'line'> => {
-  // Mostrar todos los puntos del CSV, ajustando ticks según cantidad
   const dataLength = dataPoints.value.length
   const suggestedXTicks = dataLength <= 30 ? dataLength : Math.min(30, Math.ceil(dataLength / 3))
   
@@ -250,7 +257,7 @@ const chartOptions = computed((): ChartOptions<'line'> => {
           pointStyle: 'circle',
           boxWidth: 15,
           font: {
-            size: 16 // Fuente más grande
+            size: 16
           }
         }
       },
@@ -346,7 +353,7 @@ const chartOptions = computed((): ChartOptions<'line'> => {
     },
     elements: {
       point: {
-        hitRadius: 15 // Área de detección más grande
+        hitRadius: 15
       },
       line: {
         borderJoinStyle: 'round',
@@ -358,7 +365,6 @@ const chartOptions = computed((): ChartOptions<'line'> => {
 
 // Funciones auxiliares
 const formatNumber = (num: number): string => {
-  // Formatear con 3 decimales y separadores de miles en formato español
   return new Intl.NumberFormat('es-ES', { 
     minimumFractionDigits: 3,
     maximumFractionDigits: 3 
@@ -378,7 +384,6 @@ watch(() => csvStore.data, () => {
 // Auto-seleccionar columnas iniciales si es posible
 watch(() => headers.value, (newHeaders) => {
   if (newHeaders.length > 0 && !xColumn.value) {
-    // Intentar encontrar columna de tiempo/fecha para X
     const possibleXColumns = ['time', 'date', 'fecha', 'hora']
     let found = false
     
@@ -391,7 +396,6 @@ watch(() => headers.value, (newHeaders) => {
       }
     }
     
-    // Si no encontramos una columna específica, usar la primera
     if (!found && newHeaders.length > 0) {
       xColumn.value = newHeaders[0]
     }
@@ -400,10 +404,14 @@ watch(() => headers.value, (newHeaders) => {
 
 watch(() => numericHeaders.value, (newNumericHeaders) => {
   if (newNumericHeaders.length > 0 && selectedYColumns.value.length === 0) {
-    // Auto-seleccionar la primera columna numérica
     selectedYColumns.value = [newNumericHeaders[0]]
   }
 })
+
+// WATCH PARA DETECTAR CAMBIOS EN filteredData
+watch(() => props.filteredData, (newFilteredData) => {
+  console.log('Datos filtrados recibidos en LineChart:', newFilteredData?.length || 0)
+}, { deep: true })
 </script>
 
 <style scoped>
@@ -594,6 +602,28 @@ watch(() => numericHeaders.value, (newNumericHeaders) => {
   color: #495057;
   margin-bottom: 0.4rem;
   font-weight: 500;
+}
+
+/* ESTILOS PARA LA INFORMACIÓN DEL FILTRO */
+.filter-info {
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.filter-badge {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.filter-badge.no-data {
+  background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+  box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
 }
 
 @media (max-width: 768px) {

@@ -1,6 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import LoginForm from '@/components/LoginForm.vue'
+import LineChart from '@/components/LineChart.vue'
+import HourRangerFilter from '@/components/HourRangerFilter.vue'
+import { useCSVStore } from '@/stores/csvStore'
+import { parseCSV } from '@/utils/csvParser'
+
+// CSV Store
+const csvStore = useCSVStore()
 
 // Estados de autenticación
 const isLoggedIn = ref(false)
@@ -10,6 +17,15 @@ const showLoginModal = ref(false)
 // Estado de navegación
 const currentView = ref('charts') // 'charts' o 'table'
 const sidebarCollapsed = ref(false)
+
+// Estados de archivos
+const uploadedFiles = ref<File[]>([])
+const selectedFile = ref<File | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+// Estados para tabla
+const filteredData = ref<Record<string, any>[]>([])
+const showFullTable = ref(true)
 
 // Verificar si hay sesión guardada al cargar la app
 onMounted(() => {
@@ -44,6 +60,14 @@ const handleLogout = () => {
   isLoggedIn.value = false
   currentUser.value = ''
   
+  // Limpiar archivos al cerrar sesión
+  uploadedFiles.value = []
+  selectedFile.value = null
+  filteredData.value = []
+  showFullTable.value = true
+  
+  csvStore.clearData()
+  
   // Limpiar localStorage
   localStorage.removeItem('csvVisualizerUser')
   
@@ -52,6 +76,10 @@ const handleLogout = () => {
 
 // Cambiar vista
 const setView = (view: string) => {
+  if (!selectedFile.value) {
+    console.warn('No hay archivo seleccionado')
+    return
+  }
   currentView.value = view
   console.log('Vista cambiada a:', view)
 }
@@ -60,6 +88,165 @@ const setView = (view: string) => {
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
 }
+
+// FUNCIONES DE MANEJO DE ARCHIVOS
+
+// Función para abrir el selector de archivos
+const openFileSelector = () => {
+  console.log('Intentando abrir selector de archivos...')
+  console.log('fileInput.value:', fileInput.value)
+  
+  if (fileInput.value) {
+    console.log('Abriendo selector de archivos')
+    fileInput.value.click()
+  } else {
+    console.error('No se encontró la referencia al input de archivo')
+  }
+}
+
+// Manejar subida de archivos
+const handleFileUpload = async (event: Event) => {
+  console.log('Evento de subida de archivo disparado')
+  const target = event.target as HTMLInputElement
+  const files = target.files
+  
+  console.log('Archivos seleccionados:', files?.length || 0)
+  
+  if (files && files.length > 0) {
+    for (const file of Array.from(files)) {
+      console.log('Procesando archivo:', file.name, 'Tamaño:', file.size)
+      
+      // Validar que sea un archivo CSV
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        console.error('Archivo no es CSV:', file.name)
+        alert('Por favor selecciona solo archivos CSV (.csv)')
+        continue
+      }
+      
+      // Verificar si el archivo ya existe
+      const existingFile = uploadedFiles.value.find(f => 
+        f.name === file.name && f.size === file.size
+      )
+      
+      if (!existingFile) {
+        uploadedFiles.value.push(file)
+        console.log('Archivo agregado a la lista:', file.name)
+        
+        // Si es el primer archivo, seleccionarlo automáticamente
+        if (uploadedFiles.value.length === 1) {
+          console.log('Seleccionando primer archivo automáticamente')
+          await selectFile(file)
+        }
+      } else {
+        console.warn('El archivo ya está cargado:', file.name)
+        alert(`El archivo "${file.name}" ya está cargado`)
+      }
+    }
+    
+    // Limpiar el input para permitir subir el mismo archivo otra vez si es necesario
+    target.value = ''
+    console.log('Input de archivo limpiado')
+  } else {
+    console.log('No se seleccionaron archivos')
+  }
+}
+
+// Seleccionar archivo y procesarlo
+const selectFile = async (file: File) => {
+  console.log('=== INICIANDO SELECCIÓN DE ARCHIVO ===')
+  console.log('Archivo:', file.name, 'Tamaño:', file.size)
+  
+  selectedFile.value = file
+  
+  // LIMPIAR DATOS FILTRADOS AL CAMBIAR DE ARCHIVO
+  filteredData.value = []
+  showFullTable.value = true
+  
+  // Procesar el CSV
+  try {
+    csvStore.setLoading(true)
+    csvStore.setError(null)
+    
+    console.log('Leyendo contenido del archivo...')
+    const text = await file.text()
+    console.log('Archivo leído, tamaño del texto:', text.length)
+    
+    console.log('Parseando CSV...')
+    const csvData = parseCSV(text)
+    console.log('CSV parseado exitosamente:', {
+      headers: csvData.headers.length,
+      rows: csvData.rows.length,
+      firstHeader: csvData.headers[0],
+      firstRow: csvData.rows[0]
+    })
+    
+    // Usar addCSVFile del store
+    csvStore.addCSVFile(csvData, file.name)
+    console.log('Datos guardados en el store')
+    
+    // Si no hay vista seleccionada, ir a gráficos por defecto
+    if (!currentView.value) {
+      currentView.value = 'charts'
+      console.log('Vista establecida a charts por defecto')
+    }
+    
+    // Forzar actualización
+    await nextTick()
+    console.log('=== ARCHIVO PROCESADO EXITOSAMENTE ===')
+    
+  } catch (error: any) {
+    console.error('=== ERROR AL PROCESAR ARCHIVO ===')
+    console.error('Error:', error)
+    csvStore.setError(`Error al procesar el archivo: ${error.message}`)
+    alert(`Error al procesar el archivo: ${error.message}`)
+  } finally {
+    csvStore.setLoading(false)
+  }
+}
+
+// Eliminar archivo
+const removeFile = async (index: number) => {
+  console.log('Eliminando archivo en índice:', index)
+  const fileToRemove = uploadedFiles.value[index]
+  
+  // Si el archivo a eliminar es el seleccionado, limpiar selección
+  if (selectedFile.value === fileToRemove) {
+    selectedFile.value = null
+    filteredData.value = []
+    showFullTable.value = true
+    csvStore.clearData()
+    
+    // Si hay otros archivos, seleccionar el primero disponible
+    if (uploadedFiles.value.length > 1) {
+      const remainingFiles = uploadedFiles.value.filter((_, i) => i !== index)
+      if (remainingFiles.length > 0) {
+        await selectFile(remainingFiles[0])
+      }
+    }
+  }
+  
+  // Eliminar el archivo de la lista
+  uploadedFiles.value.splice(index, 1)
+  console.log('Archivo eliminado:', fileToRemove.name)
+}
+
+// Formatear tamaño de archivo
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes'
+  
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+// Manejar cambio de filtro de horas
+const handleFilterChange = (filtered: Record<string, any>[]) => {
+  console.log('Filtro aplicado, registros:', filtered.length)
+  filteredData.value = filtered
+  showFullTable.value = filtered.length === (csvStore.data?.rows.length || 0)
+}
 </script>
 
 <template>
@@ -67,7 +254,6 @@ const toggleSidebar = () => {
     <!-- NAVBAR SUPERIOR -->
     <nav class="navbar">
       <div class="nav-left">
-        <!-- Botón hamburguesa para sidebar -->
         <button 
           v-if="isLoggedIn" 
           class="sidebar-toggle" 
@@ -78,9 +264,7 @@ const toggleSidebar = () => {
         <h2>CSV Visualizer</h2>
       </div>
       
-      <!-- SECCIÓN DE AUTENTICACIÓN -->
       <div class="nav-auth">
-        <!-- Si NO está logueado -->
         <button 
           v-if="!isLoggedIn" 
           class="login-btn" 
@@ -89,7 +273,6 @@ const toggleSidebar = () => {
           🔐 Iniciar Sesión
         </button>
         
-        <!-- Si YA está logueado -->
         <div v-else class="user-menu">
           <span class="welcome-text">¡Hola, {{ currentUser }}!</span>
           <button class="logout-btn" @click="handleLogout">
@@ -108,50 +291,115 @@ const toggleSidebar = () => {
       >
         <div class="sidebar-content">
           
-          <!-- TÍTULO DE LA SIDEBAR -->
           <div class="sidebar-header">
-            <h3 v-if="!sidebarCollapsed">Navegación</h3>
+            <h3 v-if="!sidebarCollapsed">Panel de Control</h3>
             <span v-else class="sidebar-icon">📱</span>
           </div>
           
-          <!-- BOTONES DE NAVEGACIÓN -->
-          <nav class="sidebar-nav">
+          <!-- SECCIÓN DE ARCHIVOS -->
+          <div class="sidebar-section">
+            <h4 v-if="!sidebarCollapsed" class="section-title">📁 Archivos</h4>
             
-            <!-- Botón Gráficos -->
-            <button 
-              class="sidebar-btn" 
-              :class="{ active: currentView === 'charts' }"
-              @click="setView('charts')"
-            >
-              <span class="btn-icon">📈</span>
-              <span v-if="!sidebarCollapsed" class="btn-text">Gráficos</span>
-            </button>
+            <div class="file-upload-section">
+              <input 
+                ref="fileInput"
+                type="file" 
+                accept=".csv"
+                @change="handleFileUpload"
+                style="display: none"
+                multiple
+              />
+              
+              <button 
+                class="sidebar-btn file-btn" 
+                @click="openFileSelector"
+                type="button"
+              >
+                <span class="btn-icon">📤</span>
+                <span v-if="!sidebarCollapsed" class="btn-text">Subir CSV</span>
+              </button>
+            </div>
             
-            <!-- Botón Tabla -->
-            <button 
-              class="sidebar-btn" 
-              :class="{ active: currentView === 'table' }"
-              @click="setView('table')"
-            >
-              <span class="btn-icon">📊</span>
-              <span v-if="!sidebarCollapsed" class="btn-text">Tabla</span>
-            </button>
+            <div v-if="uploadedFiles.length > 0" class="uploaded-files">
+              <h5 v-if="!sidebarCollapsed" class="files-title">Archivos cargados:</h5>
+              
+              <div 
+                v-for="(file, index) in uploadedFiles" 
+                :key="index"
+                class="file-item"
+                :class="{ active: selectedFile === file }"
+                @click="selectFile(file)"
+              >
+                <div class="file-info">
+                  <span class="file-icon">📄</span>
+                  <div v-if="!sidebarCollapsed" class="file-details">
+                    <span class="file-name">{{ file.name }}</span>
+                    <small class="file-size">{{ formatFileSize(file.size) }}</small>
+                  </div>
+                </div>
+                <button 
+                  v-if="!sidebarCollapsed"
+                  class="file-delete-btn" 
+                  @click.stop="removeFile(index)"
+                  title="Eliminar archivo"
+                  type="button"
+                >
+                  ❌
+                </button>
+              </div>
+            </div>
             
-            <!-- Separador -->
-            <div class="sidebar-separator"></div>
+            <div v-else-if="!sidebarCollapsed" class="no-files-message">
+              <small>No hay archivos cargados</small>
+            </div>
+          </div>
+          
+          <div class="sidebar-separator"></div>
+          
+          <!-- SECCIÓN DE NAVEGACIÓN -->
+          <div class="sidebar-section">
+            <h4 v-if="!sidebarCollapsed" class="section-title">📊 Visualización</h4>
             
-            <!-- Botón Configuración (ejemplo de funcionalidad futura) -->
-            <button class="sidebar-btn sidebar-btn-secondary">
+            <nav class="sidebar-nav">
+              <button 
+                class="sidebar-btn" 
+                :class="{ active: currentView === 'charts' }"
+                @click="setView('charts')"
+                :disabled="!selectedFile"
+                type="button"
+              >
+                <span class="btn-icon">📈</span>
+                <span v-if="!sidebarCollapsed" class="btn-text">Gráficos</span>
+              </button>
+              
+              <button 
+                class="sidebar-btn" 
+                :class="{ active: currentView === 'table' }"
+                @click="setView('table')"
+                :disabled="!selectedFile"
+                type="button"
+              >
+                <span class="btn-icon">📊</span>
+                <span v-if="!sidebarCollapsed" class="btn-text">Tabla</span>
+              </button>
+            </nav>
+          </div>
+          
+          <div class="sidebar-separator"></div>
+          
+          <div class="sidebar-section">
+            <button class="sidebar-btn sidebar-btn-secondary" type="button">
               <span class="btn-icon">⚙️</span>
               <span v-if="!sidebarCollapsed" class="btn-text">Configuración</span>
             </button>
-            
-          </nav>
+          </div>
           
-          <!-- PIE DE SIDEBAR -->
           <div class="sidebar-footer">
             <div v-if="!sidebarCollapsed" class="app-info">
               <small>CSV Visualizer v1.0</small>
+              <div v-if="selectedFile" class="current-file-info">
+                <small>📄 {{ selectedFile.name }}</small>
+              </div>
             </div>
           </div>
         </div>
@@ -164,44 +412,133 @@ const toggleSidebar = () => {
         'main-full': !isLoggedIn
       }">
         
-        <!-- Mostrar mensaje si no está logueado -->
         <div v-if="!isLoggedIn" class="login-required">
           <div class="login-message">
             <h2>🔒 Acceso Restringido</h2>
             <p>Debes iniciar sesión para usar CSV Visualizer</p>
-            <button class="login-prompt-btn" @click="showLoginModal = true">
+            <button class="login-prompt-btn" @click="showLoginModal = true" type="button">
               Iniciar Sesión
             </button>
           </div>
         </div>
         
-        <!-- Mostrar la aplicación si está logueado -->
         <div v-else class="app-content">
           
-          <!-- HEADER DEL CONTENIDO -->
-          <div class="content-header">
-            <h1 v-if="currentView === 'charts'">📈 Visualización de Gráficos</h1>
-            <h1 v-if="currentView === 'table'">📊 Vista de Tabla</h1>
-            <p class="content-subtitle">
-              <span v-if="currentView === 'charts'">Crea y visualiza gráficos interactivos de tus datos CSV</span>
-              <span v-if="currentView === 'table'">Explora y analiza tus datos en formato tabular</span>
-            </p>
+          <div v-if="!selectedFile" class="no-file-selected">
+            <div class="empty-state">
+              <h2>📁 No hay archivo seleccionado</h2>
+              <p>Sube un archivo CSV desde la barra lateral para comenzar</p>
+              <div class="upload-instructions">
+                <div class="instruction">
+                  <span class="step">1.</span>
+                  <span>Haz clic en "📤 Subir CSV" en la barra lateral</span>
+                </div>
+                <div class="instruction">
+                  <span class="step">2.</span>
+                  <span>Selecciona tu archivo CSV</span>
+                </div>
+                <div class="instruction">
+                  <span class="step">3.</span>
+                  <span>Haz clic en el archivo para seleccionarlo</span>
+                </div>
+                <div class="instruction">
+                  <span class="step">4.</span>
+                  <span>¡Comienza a visualizar tus datos!</span>
+                </div>
+              </div>
+            </div>
           </div>
           
-          <!-- CONTENIDO DINÁMICO -->
-          <div class="view-content">
-            <div v-if="currentView === 'charts'" class="charts-view">
-              <router-view />
-              <!-- Aquí irían tus componentes de gráficos -->
+          <div v-else>
+            <div class="content-header">
+              <h1 v-if="currentView === 'charts'">📈 Visualización de Gráficos</h1>
+              <h1 v-if="currentView === 'table'">📊 Vista de Tabla</h1>
+              <p class="content-subtitle">
+                <span v-if="currentView === 'charts'">Crea y visualiza gráficos interactivos de tus datos CSV</span>
+                <span v-if="currentView === 'table'">Explora y analiza tus datos en formato tabular con filtros</span>
+              </p>
+              <div class="file-indicator">
+                <span class="current-file-badge">
+                  📄 {{ selectedFile.name }} 
+                  <small>({{ formatFileSize(selectedFile.size) }})</small>
+                </span>
+              </div>
             </div>
             
-            <div v-if="currentView === 'table'" class="table-view">
-              <div class="placeholder-content">
-                <h3>🚧 Vista de Tabla</h3>
-                <p>Esta sección estará disponible próximamente.</p>
-                <p>Aquí podrás ver y editar tus datos CSV en formato de tabla.</p>
+            <div class="view-content">
+              
+              <!-- VISTA DE GRÁFICOS -->
+              <div v-if="currentView === 'charts'" class="charts-view">
+                <HourRangerFilter @filter-change="handleFilterChange" />
+                <LineChart 
+                  title="Visualizador de Gráficos CSV" 
+                  :filteredData="filteredData"
+                />
               </div>
-              <!-- Aquí irían tus componentes de tabla -->
+              
+              <!-- VISTA DE TABLA -->
+              <div v-if="currentView === 'table'" class="table-view">
+                <HourRangerFilter @filter-change="handleFilterChange" />
+                
+                <!-- TABLA DE RESULTADOS -->
+                <div v-if="filteredData.length > 0" class="filtered-results">
+                  <div class="table-info">
+                    <p><strong>Resultados filtrados:</strong> {{ filteredData.length }} registros</p>
+                    <p><strong>Archivo:</strong> {{ selectedFile.name }}</p>
+                  </div>
+                  
+                  <div class="table-wrapper">
+                    <table class="results-table">
+                      <thead>
+                        <tr>
+                          <th v-for="header in csvStore.data?.headers" :key="header">{{ header }}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, index) in filteredData.slice(0, 100)" :key="index">
+                          <td v-for="header in csvStore.data?.headers" :key="header">
+                            {{ row[header] }}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  <div v-if="filteredData.length > 100" class="showing-info">
+                    <small>Mostrando primeros 100 resultados de {{ filteredData.length }}</small>
+                  </div>
+                </div>
+                
+                <!-- MOSTRAR TABLA COMPLETA SI NO HAY FILTROS -->
+                <div v-else-if="csvStore.data?.rows" class="full-table">
+                  <div class="table-info">
+                    <p><strong>Datos completos:</strong> {{ csvStore.data.rows.length }} registros</p>
+                    <p><strong>Archivo:</strong> {{ selectedFile.name }}</p>
+                  </div>
+                  
+                  <div class="table-wrapper">
+                    <table class="results-table">
+                      <thead>
+                        <tr>
+                          <th v-for="header in csvStore.data.headers" :key="header">{{ header }}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, index) in csvStore.data.rows.slice(0, 100)" :key="index">
+                          <td v-for="header in csvStore.data.headers" :key="header">
+                            {{ row[header] }}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  <div v-if="csvStore.data.rows.length > 100" class="showing-info">
+                    <small>Mostrando primeros 100 resultados de {{ csvStore.data.rows.length }}</small>
+                  </div>
+                </div>
+              </div>
+              
             </div>
           </div>
         </div>
@@ -217,6 +554,7 @@ const toggleSidebar = () => {
   </div>
 </template>
 
+<!-- ... mantener todos los estilos existentes y agregar los nuevos ... -->
 <style scoped>
 /* LAYOUT PRINCIPAL */
 #app {
@@ -335,7 +673,7 @@ const toggleSidebar = () => {
   position: fixed;
   left: 0;
   top: 60px;
-  width: 400px;
+  width: 300px;
   height: calc(100vh - 60px);
   background: white;
   border-right: 1px solid #e9ecef;
@@ -373,9 +711,133 @@ const toggleSidebar = () => {
   font-size: 1.5rem;
 }
 
+/* SECCIONES DE LA SIDEBAR */
+.sidebar-section {
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  margin: 0 0 1rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* SECCIÓN DE ARCHIVOS */
+.file-upload-section {
+  padding: 0 1rem;
+  margin-bottom: 1rem;
+}
+
+.file-btn {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  border: 2px solid transparent;
+}
+
+.file-btn:hover {
+  background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+
+/* ARCHIVOS CARGADOS */
+.uploaded-files {
+  padding: 0 1rem;
+}
+
+.files-title {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #495057;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: #f8f9fa;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.file-item:hover {
+  background: #e9ecef;
+  border-color: #dee2e6;
+}
+
+.file-item.active {
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  color: white;
+  border-color: #0056b3;
+  box-shadow: 0 2px 10px rgba(0, 123, 255, 0.3);
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.file-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.file-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.file-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-size {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+.file-delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  transition: all 0.3s;
+  flex-shrink: 0;
+}
+
+.file-delete-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.no-files-message {
+  padding: 1rem;
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+}
+
 /* NAVEGACIÓN DE SIDEBAR */
 .sidebar-nav {
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -409,9 +871,17 @@ const toggleSidebar = () => {
   box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
 }
 
+.sidebar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f8f9fa !important;
+  color: #6c757d !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
 .sidebar-btn-secondary {
   color: #6c757d;
-  margin-top: auto;
 }
 
 .sidebar-btn-secondary:hover {
@@ -440,11 +910,19 @@ const toggleSidebar = () => {
   padding: 0 1.5rem;
   border-top: 1px solid #e9ecef;
   padding-top: 1rem;
+  margin-top: auto;
 }
 
 .app-info {
   text-align: center;
   color: #6c757d;
+}
+
+.current-file-info {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e9ecef;
+  color: #495057;
 }
 
 /* CONTENIDO PRINCIPAL */
@@ -455,7 +933,7 @@ const toggleSidebar = () => {
 }
 
 .main-with-sidebar {
-  margin-left: 250px;
+  margin-left: 300px;
 }
 
 .main-with-sidebar-collapsed {
@@ -514,6 +992,67 @@ const toggleSidebar = () => {
   box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
 }
 
+/* ESTADO SIN ARCHIVO SELECCIONADO */
+.no-file-selected {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 120px);
+  padding: 2rem;
+}
+
+.empty-state {
+  text-align: center;
+  background: white;
+  padding: 3rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  max-width: 600px;
+}
+
+.empty-state h2 {
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  font-size: 2rem;
+}
+
+.empty-state p {
+  color: #7f8c8d;
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+}
+
+.upload-instructions {
+  text-align: left;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.instruction {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #3498db;
+}
+
+.step {
+  background: #3498db;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
 /* CONTENIDO DE LA APP */
 .app-content {
   padding: 2rem;
@@ -537,6 +1076,21 @@ const toggleSidebar = () => {
   margin: 0;
 }
 
+.file-indicator {
+  margin-top: 1rem;
+}
+
+.current-file-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(23, 162, 184, 0.3);
+}
+
 /* VISTAS DE CONTENIDO */
 .view-content {
   background: white;
@@ -546,21 +1100,94 @@ const toggleSidebar = () => {
   min-height: 400px;
 }
 
-.placeholder-content {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: #6c757d;
+.charts-view,
+.table-view {
+  width: 100%;
+  min-height: 600px;
 }
 
-.placeholder-content h3 {
-  color: #495057;
+.charts-view {
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.table-view {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+/* ESTILOS ADICIONALES PARA TABLA DE RESULTADOS */
+.filtered-results,
+.full-table {
+  margin-top: 2rem;
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.table-info {
+  display: flex;
+  justify-content: space-between;
   margin-bottom: 1rem;
-  font-size: 1.5rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #3498db;
 }
 
-.placeholder-content p {
-  margin-bottom: 0.5rem;
-  font-size: 1rem;
+.table-info p {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 0.9rem;
+}
+
+.table-wrapper {
+  max-height: 500px;
+  overflow: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.results-table th {
+  background: #2c3e50;
+  color: white;
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.results-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #f1f3f4;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.results-table tr:hover {
+  background: #f8f9fa;
+}
+
+.showing-info {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  padding: 0.5rem;
 }
 
 /* RESPONSIVE */
@@ -596,6 +1223,27 @@ const toggleSidebar = () => {
   
   .view-content {
     padding: 1rem;
+  }
+  
+  .file-item {
+    padding: 0.5rem;
+  }
+  
+  .file-name {
+    font-size: 0.8rem;
+  }
+  
+  .file-size {
+    font-size: 0.65rem;
+  }
+  
+  .empty-state {
+    margin: 1rem;
+    padding: 2rem;
+  }
+  
+  .instruction {
+    padding: 0.75rem;
   }
 }
 </style>
