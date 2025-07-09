@@ -3,6 +3,7 @@ import { ref, onMounted, nextTick } from 'vue'
 import LoginForm from '@/components/LoginForm.vue'
 import LineChart from '@/components/LineChart.vue'
 import HourRangerFilter from '@/components/HourRangerFilter.vue'
+import TableView from '@/views/TableView.vue'
 import { useCSVStore } from '@/stores/csvStore'
 import { parseCSV } from '@/utils/csvParser'
 
@@ -476,67 +477,9 @@ const handleFilterChange = (filtered: Record<string, any>[]) => {
                 />
               </div>
               
-              <!-- VISTA DE TABLA -->
+              <!-- VISTA DE TABLA - SOLO USAR TableView SIN FILTROS -->
               <div v-if="currentView === 'table'" class="table-view">
-                <HourRangerFilter @filter-change="handleFilterChange" />
-                
-                <!-- TABLA DE RESULTADOS -->
-                <div v-if="filteredData.length > 0" class="filtered-results">
-                  <div class="table-info">
-                    <p><strong>Resultados filtrados:</strong> {{ filteredData.length }} registros</p>
-                    <p><strong>Archivo:</strong> {{ selectedFile.name }}</p>
-                  </div>
-                  
-                  <div class="table-wrapper">
-                    <table class="results-table">
-                      <thead>
-                        <tr>
-                          <th v-for="header in csvStore.data?.headers" :key="header">{{ header }}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="(row, index) in filteredData.slice(0, 100)" :key="index">
-                          <td v-for="header in csvStore.data?.headers" :key="header">
-                            {{ row[header] }}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  
-                  <div v-if="filteredData.length > 100" class="showing-info">
-                    <small>Mostrando primeros 100 resultados de {{ filteredData.length }}</small>
-                  </div>
-                </div>
-                
-                <!-- MOSTRAR TABLA COMPLETA SI NO HAY FILTROS -->
-                <div v-else-if="csvStore.data?.rows" class="full-table">
-                  <div class="table-info">
-                    <p><strong>Datos completos:</strong> {{ csvStore.data.rows.length }} registros</p>
-                    <p><strong>Archivo:</strong> {{ selectedFile.name }}</p>
-                  </div>
-                  
-                  <div class="table-wrapper">
-                    <table class="results-table">
-                      <thead>
-                        <tr>
-                          <th v-for="header in csvStore.data.headers" :key="header">{{ header }}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="(row, index) in csvStore.data.rows.slice(0, 100)" :key="index">
-                          <td v-for="header in csvStore.data.headers" :key="header">
-                            {{ row[header] }}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  
-                  <div v-if="csvStore.data.rows.length > 100" class="showing-info">
-                    <small>Mostrando primeros 100 resultados de {{ csvStore.data.rows.length }}</small>
-                  </div>
-                </div>
+                <TableView />
               </div>
               
             </div>
@@ -554,7 +497,7 @@ const handleFilterChange = (filtered: Record<string, any>[]) => {
   </div>
 </template>
 
-<!-- ... mantener todos los estilos existentes y agregar los nuevos ... -->
+<!-- ... mantén todos los estilos existentes ... -->
 <style scoped>
 /* LAYOUT PRINCIPAL */
 #app {
