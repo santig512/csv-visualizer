@@ -468,16 +468,83 @@ const handleFilterChange = (filtered: Record<string, any>[]) => {
             
             <div class="view-content">
               
-              <!-- VISTA DE GRÁFICOS -->
-              <div v-if="currentView === 'charts'" class="charts-view">
-                <HourRangerFilter @filter-change="handleFilterChange" />
-                <LineChart 
-                  title="Visualizador de Gráficos CSV" 
-                  :filteredData="filteredData"
-                />
+              <!-- VISTA DE GRÁFICOS EN LAYOUT HORIZONTAL -->
+              <div v-if="currentView === 'charts'" class="charts-view-horizontal">
+                
+                <!-- PANEL IZQUIERDO: FILTROS Y CONSULTAS -->
+                <div class="left-panel">
+                  <div class="panel-box">
+                    <div class="panel-header panel-header-blue">
+                      <h3>🔍 Filtros y Consultas</h3>
+                    </div>
+                    
+                    <div class="panel-body">
+                      <!-- FILTROS -->
+                      <div class="filter-wrapper">
+                        <HourRangerFilter @filter-change="handleFilterChange" />
+                      </div>
+                      
+                      <!-- TABLA DE RESULTADOS -->
+                      <div class="results-container">
+                        <div v-if="filteredData.length > 0" class="query-results">
+                          <div class="results-header">
+                            <h4>📊 Resultados de la consulta</h4>
+                            <span class="results-count">{{ filteredData.length }} registros</span>
+                          </div>
+                          
+                          <div class="table-container">
+                            <table class="results-table">
+                              <thead>
+                                <tr>
+                                  <th v-for="header in csvStore.data?.headers" :key="header">
+                                    {{ header }}
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr v-for="(row, index) in filteredData.slice(0, 100)" :key="index">
+                                  <td v-for="header in csvStore.data?.headers" :key="header">
+                                    {{ row[header] }}
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                          
+                          <div v-if="filteredData.length > 100" class="table-footer">
+                            <small>Mostrando 100 de {{ filteredData.length }} resultados</small>
+                          </div>
+                        </div>
+                        
+                        <div v-else class="no-results">
+                          <span class="no-results-icon">🔍</span>
+                          <p>Aplica filtros para ver resultados</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- PANEL DERECHO: GRÁFICO -->
+                <div class="right-panel">
+                  <div class="panel-box">
+                    <div class="panel-header panel-header-red">
+                      <h3>📈 Visualización de Datos</h3>
+                    </div>
+                    
+                    <div class="panel-body chart-panel-body">
+                      <LineChart 
+                        title="" 
+                        :filteredData="filteredData"
+                        :compact="true"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
               </div>
               
-              <!-- VISTA DE TABLA - SOLO USAR TableView SIN FILTROS -->
+              <!-- VISTA DE TABLA - SIN CAMBIOS -->
               <div v-if="currentView === 'table'" class="table-view">
                 <TableView />
               </div>
@@ -557,6 +624,7 @@ const handleFilterChange = (filtered: Record<string, any>[]) => {
 .nav-auth {
   display: flex;
   align-items: center;
+  
 }
 
 .login-btn {
@@ -606,7 +674,6 @@ const handleFilterChange = (filtered: Record<string, any>[]) => {
 
 /* LAYOUT CON SIDEBAR */
 .app-layout {
-  display: flex;
   padding-top: 60px;
   min-height: calc(100vh - 60px);
 }
@@ -1038,155 +1105,95 @@ const handleFilterChange = (filtered: Record<string, any>[]) => {
 .view-content {
   background: white;
   border-radius: 12px;
-  padding: 2rem;
+  padding: 1rem;
   box-shadow: 0 4px 20px rgba(0,0,0,0.05);
   min-height: 400px;
-}
-
-.charts-view,
-.table-view {
-  width: 100%;
-  min-height: 600px;
-}
-
-.charts-view {
-  padding: 1rem;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.table-view {
-  background: #f8f9fa;
-  border-radius: 8px;
-  padding: 1rem;
-}
-
-/* ESTILOS ADICIONALES PARA TABLA DE RESULTADOS */
-.filtered-results,
-.full-table {
-  margin-top: 2rem;
-  background: white;
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.table-info {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 6px;
-  border-left: 4px solid #3498db;
+  flex-direction: column;
+  overflow: visible; /* Cambiado de hidden a visible */
+  height: auto; /* Cambiado de fixed a auto */
+  min-height: calc(100vh - 220px); /* Altura mínima */
 }
 
-.table-info p {
-  margin: 0;
-  color: #2c3e50;
-  font-size: 0.9rem;
-}
-
-.table-wrapper {
-  max-height: 500px;
-  overflow: auto;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  margin-bottom: 1rem;
-}
-
-.results-table {
+/* LAYOUT HORIZONTAL PARA GRÁFICOS - 50/50 EXACTO */
+.charts-view-horizontal {
+  display: flex;
   width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
+  gap: 1rem;
+  flex-wrap: wrap; /* Permite que se envuelvan en pantallas pequeñas */
 }
 
-.results-table th {
-  background: #2c3e50;
-  color: white;
-  padding: 0.75rem;
-  text-align: left;
-  font-weight: 600;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+/* PANEL IZQUIERDO: FILTROS Y CONSULTAS - 50% */
+.left-panel {
+  flex: 1;
+  min-width: 450px; /* Ancho mínimo */
+  width: calc(50% - 0.5rem); /* 50% menos la mitad del gap */
+  min-height: 700px; /* Altura mínima */
 }
 
-.results-table td {
-  padding: 0.75rem;
-  border-bottom: 1px solid #f1f3f4;
-  max-width: 200px;
+/* PANEL DERECHO: GRÁFICO - 50% */
+.right-panel {
+  min-width: 0;
+  height: 100%;
+  width: 50%;
+}
+
+/* CONTENEDOR DE PANEL */
+.panel-box {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: 8px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background-color: white;
 }
 
-.results-table tr:hover {
-  background: #f8f9fa;
+/* CUERPO DEL PANEL */
+.panel-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 }
 
-.showing-info {
-  text-align: center;
-  color: #6c757d;
-  font-style: italic;
-  padding: 0.5rem;
+/* CUERPO DEL PANEL ESPECÍFICO PARA GRÁFICO */
+.chart-panel-body {
+  padding: 1rem;
+  overflow: hidden;
 }
 
-/* RESPONSIVE */
-@media (max-width: 768px) {
-  .navbar {
-    padding: 1rem;
+/* AJUSTE RESPONSIVE PARA MANTENER 50/50 HASTA CIERTO PUNTO */
+@media (min-width: 1600px) {
+  .left-panel, .right-panel {
+    width: 50%;
+    flex: 1;
+  }
+}
+
+@media (max-width: 1200px) {
+  .left-panel, .right-panel {
+    width: 50%;
+    flex: 1;
+  }
+}
+
+@media (max-width: 992px) {
+  .charts-view-horizontal {
+    flex-direction: column;
   }
   
-  .nav-left h2 {
-    font-size: 1.2rem;
+  .left-panel {
+    flex: 1;
+    height: 50%;
+    width: 100%;
   }
   
-  .sidebar {
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-  }
-  
-  .sidebar.show {
-    transform: translateX(0);
-  }
-  
-  .main-content {
-    margin-left: 0 !important;
-  }
-  
-  .app-content {
-    padding: 1rem;
-  }
-  
-  .content-header h1 {
-    font-size: 1.5rem;
-  }
-  
-  .view-content {
-    padding: 1rem;
-  }
-  
-  .file-item {
-    padding: 0.5rem;
-  }
-  
-  .file-name {
-    font-size: 0.8rem;
-  }
-  
-  .file-size {
-    font-size: 0.65rem;
-  }
-  
-  .empty-state {
-    margin: 1rem;
-    padding: 2rem;
-  }
-  
-  .instruction {
-    padding: 0.75rem;
+  .right-panel {
+    flex: 1;
+    height: 50%;
+    width: 100%;
   }
 }
 </style>

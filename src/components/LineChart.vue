@@ -1,52 +1,58 @@
 <template>
-  <div class="line-chart">
-    <div class="chart-header">
+  <div class="line-chart" :class="{ 'compact': compact }">
+    <div v-if="!compact" class="chart-header">
       <h3>{{ title }}</h3>
     </div>
 
-    <!-- Panel de checkboxes (mantener igual pero más compacto) -->
-    <div class="checkbox-container">
-      <!-- Columna X (solo se puede seleccionar una) -->
+    <!-- Panel de checkboxes más grande y fácil de usar -->
+    <div class="checkbox-container" :class="{ 'compact': compact }">
+      <!-- Columna X -->
       <div class="checkbox-section">
-        <h4>Columna para eje X:</h4>
+        <h4 class="checkbox-title">Eje X:</h4>
         <div class="checkbox-list x-list">
           <div v-for="header in headers" :key="`x-${header}`" class="checkbox-item">
-            <label>
+            <label class="checkbox-label-container">
               <input 
                 type="radio" 
                 :value="header" 
                 v-model="xColumn"
                 name="x-column"
                 @change="updateChart"
+                class="checkbox-input"
               />
-              <span class="checkbox-label">{{ header }}</span>
+              <div class="checkbox-content">
+                <span class="checkbox-text">{{ header }}</span>
+              </div>
             </label>
           </div>
         </div>
       </div>
 
-      <!-- Columnas Y (se puede seleccionar múltiples) -->
+      <!-- Columnas Y -->
       <div class="checkbox-section">
-        <h4>Columnas para graficar:</h4>
+        <h4 class="checkbox-title">Columnas Y:</h4>
         <div class="checkbox-list y-list">
           <div 
             v-for="header in numericHeaders" 
             :key="`y-${header}`" 
             class="checkbox-item"
           >
-            <label>
+            <label class="checkbox-label-container">
               <input 
                 type="checkbox" 
                 :value="header" 
                 v-model="selectedYColumns"
                 @change="updateChart"
+                class="checkbox-input"
               />
-              <span class="checkbox-label">{{ header }}</span>
-              <span 
-                v-if="selectedYColumns.includes(header)" 
-                class="color-indicator" 
-                :style="{ backgroundColor: getSeriesColor(header) }"
-              ></span>
+              <div class="checkbox-content">
+                <span class="checkbox-text">{{ header }}</span>
+                <span 
+                  v-if="selectedYColumns.includes(header)" 
+                  class="color-indicator" 
+                  :style="{ backgroundColor: getSeriesColor(header) }"
+                ></span>
+              </div>
             </label>
           </div>
         </div>
@@ -56,45 +62,24 @@
     <!-- INFORMACIÓN SOBRE FILTRO -->
     <div v-if="props.filteredData && props.filteredData.length > 0" class="filter-info">
       <div class="filter-badge">
-        📊 Mostrando datos filtrados: {{ props.filteredData.length }} registros
+        📊 {{ props.filteredData.length }} registros filtrados
       </div>
     </div>
     <div v-else-if="props.filteredData && props.filteredData.length === 0" class="filter-info">
       <div class="filter-badge no-data">
-        ⚠️ No hay datos para el filtro seleccionado
+        ⚠️ Sin datos para el filtro
       </div>
     </div>
 
     <div v-if="!canRender" class="chart-message">
-      <p v-if="!xColumn">Selecciona una columna para el eje X</p>
-      <p v-else-if="selectedYColumns.length === 0">Selecciona al menos una columna para graficar</p>
-      <p v-else>No hay datos disponibles para mostrar</p>
+      <p v-if="!xColumn">Selecciona columna X</p>
+      <p v-else-if="selectedYColumns.length === 0">Selecciona columnas Y</p>
+      <p v-else>Sin datos disponibles</p>
     </div>
 
-    <!-- GRÁFICO MUCHO MÁS GRANDE -->
+    <!-- GRÁFICO ADAPTABLE -->
     <div v-else class="chart-container">
       <Line :data="chartData" :options="chartOptions" />
-    </div>
-
-    <!-- Estadísticas -->
-    <div v-if="canRender" class="chart-stats">
-      <div class="stat">
-        <strong>Puntos:</strong> {{ dataPoints.length }}
-      </div>
-      <div v-for="column in selectedYColumns" :key="`stat-${column}`" class="stat-group">
-        <div class="stat-header">
-          <span 
-            class="color-indicator" 
-            :style="{ backgroundColor: getSeriesColor(column) }"
-          ></span>
-          <strong>{{ column }}</strong>
-        </div>
-        <div class="stat-values">
-          <span class="stat-value">Min: {{ formatNumber(getMinValue(column)) }}</span>
-          <span class="stat-value">Max: {{ formatNumber(getMaxValue(column)) }}</span>
-          <span class="stat-value">Prom: {{ formatNumber(getAvgValue(column)) }}</span>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -129,10 +114,11 @@ ChartJS.register(
 
 const csvStore = useCSVStore()
 
-// Props - AGREGAR filteredData
+// Props - AGREGAR compact
 const props = defineProps<{
   title?: string
   filteredData?: Record<string, string>[]
+  compact?: boolean
 }>()
 
 // Datos reactivos
@@ -173,7 +159,6 @@ const numericHeaders = computed(() => {
 const dataPoints = computed(() => {
   if (!csvStore.data || !xColumn.value || selectedYColumns.value.length === 0) return []
   
-  // Usar filteredData si está disponible, sino usar todos los datos
   const sourceData = props.filteredData && props.filteredData.length > 0 
     ? props.filteredData 
     : csvStore.data.rows
@@ -197,7 +182,7 @@ const canRender = computed(() => {
   return xColumn.value && selectedYColumns.value.length > 0 && dataPoints.value.length > 0
 })
 
-// Funciones para obtener estadísticas por columna
+// Funciones para estadísticas
 function getMinValue(column: string): number {
   const points = dataPoints.value
   if (points.length === 0) return 0
@@ -217,7 +202,7 @@ function getAvgValue(column: string): number {
   return sum / points.length
 }
 
-// Configuración del gráfico Chart.js
+// Configuración del gráfico
 const chartData = computed((): ChartData<'line'> => {
   return {
     labels: dataPoints.value.map(p => p.label),
@@ -228,12 +213,12 @@ const chartData = computed((): ChartData<'line'> => {
         data: dataPoints.value.map(p => p[column]),
         borderColor: color,
         backgroundColor: `${color}25`,
-        borderWidth: 5,
+        borderWidth: props.compact ? 3 : 5,
         pointBackgroundColor: color,
         pointBorderColor: '#fff',
-        pointBorderWidth: 3,
-        pointRadius: 8,
-        pointHoverRadius: 12,
+        pointBorderWidth: props.compact ? 2 : 3,
+        pointRadius: props.compact ? 4 : 8,
+        pointHoverRadius: props.compact ? 8 : 12,
         tension: 0.3,
         fill: false
       }
@@ -255,9 +240,9 @@ const chartOptions = computed((): ChartOptions<'line'> => {
         labels: {
           usePointStyle: true,
           pointStyle: 'circle',
-          boxWidth: 15,
+          boxWidth: props.compact ? 10 : 15,
           font: {
-            size: 16
+            size: props.compact ? 12 : 16
           }
         }
       },
@@ -267,13 +252,13 @@ const chartOptions = computed((): ChartOptions<'line'> => {
         bodyColor: '#fff',
         borderColor: '#666',
         borderWidth: 1,
-        padding: 15,
+        padding: props.compact ? 10 : 15,
         titleFont: {
-          size: 16,
+          size: props.compact ? 12 : 16,
           weight: 'bold'
         },
         bodyFont: {
-          size: 16
+          size: props.compact ? 12 : 16
         },
         callbacks: {
           label: (context) => {
@@ -288,20 +273,20 @@ const chartOptions = computed((): ChartOptions<'line'> => {
           display: true,
           text: xColumn.value,
           font: {
-            size: 18,
+            size: props.compact ? 12 : 18,
             weight: 'bold'
           },
-          padding: 20
+          padding: props.compact ? 10 : 20
         },
         grid: {
           color: 'rgba(0, 0, 0, 0.1)',
           display: true,
-          tickLength: 12,
+          tickLength: props.compact ? 6 : 12,
           lineWidth: 1.5
         },
         ticks: {
           font: {
-            size: 14
+            size: props.compact ? 10 : 14
           },
           maxTicksLimit: suggestedXTicks,
           maxRotation: 45,
@@ -313,20 +298,20 @@ const chartOptions = computed((): ChartOptions<'line'> => {
           display: selectedYColumns.value.length === 1,
           text: selectedYColumns.value.length === 1 ? selectedYColumns.value[0] : '',
           font: {
-            size: 18,
+            size: props.compact ? 12 : 18,
             weight: 'bold'
           },
-          padding: 20
+          padding: props.compact ? 10 : 20
         },
         grid: {
           color: 'rgba(0, 0, 0, 0.1)',
           display: true,
-          tickLength: 12,
+          tickLength: props.compact ? 6 : 12,
           lineWidth: 1.5
         },
         ticks: {
           font: {
-            size: 14
+            size: props.compact ? 10 : 14
           },
           color: '#555',
           callback: function(value) {
@@ -345,15 +330,15 @@ const chartOptions = computed((): ChartOptions<'line'> => {
     },
     layout: {
       padding: {
-        top: 25,
-        right: 30,
-        bottom: 25,
-        left: 30
+        top: props.compact ? 10 : 25,
+        right: props.compact ? 15 : 30,
+        bottom: props.compact ? 10 : 25,
+        left: props.compact ? 15 : 30
       }
     },
     elements: {
       point: {
-        hitRadius: 15
+        hitRadius: props.compact ? 10 : 15
       },
       line: {
         borderJoinStyle: 'round',
@@ -366,22 +351,21 @@ const chartOptions = computed((): ChartOptions<'line'> => {
 // Funciones auxiliares
 const formatNumber = (num: number): string => {
   return new Intl.NumberFormat('es-ES', { 
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3 
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2 
   }).format(num)
 }
 
 const updateChart = () => {
-  // El gráfico se actualiza automáticamente con los computed properties
+  // El gráfico se actualiza automáticamente
 }
 
-// Watcher para resetear columnas si cambian los datos
+// Watchers
 watch(() => csvStore.data, () => {
   xColumn.value = ''
   selectedYColumns.value = []
 })
 
-// Auto-seleccionar columnas iniciales si es posible
 watch(() => headers.value, (newHeaders) => {
   if (newHeaders.length > 0 && !xColumn.value) {
     const possibleXColumns = ['time', 'date', 'fecha', 'hora']
@@ -408,244 +392,253 @@ watch(() => numericHeaders.value, (newNumericHeaders) => {
   }
 })
 
-// WATCH PARA DETECTAR CAMBIOS EN filteredData
 watch(() => props.filteredData, (newFilteredData) => {
   console.log('Datos filtrados recibidos en LineChart:', newFilteredData?.length || 0)
 }, { deep: true })
 </script>
 
 <style scoped>
+/* CONTENEDOR PRINCIPAL */
 .line-chart {
-  background: white;
-  border-radius: 10px;
-  padding: 1.5rem;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
   width: 100%;
-  max-width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+  flex-shrink: 0;
 }
 
 .chart-header h3 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   color: #333;
 }
 
+/* CHECKBOXES MUCHO MÁS GRANDES Y FÁCILES DE USAR */
 .checkbox-container {
   display: flex;
-  gap: 2rem;
-  margin-bottom: 1rem; /* Reducido para dar más espacio al gráfico */
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-shrink: 0;
+  max-height: 180px; /* Limitar altura máxima */
 }
 
 .checkbox-section {
   flex: 1;
-}
-
-.checkbox-section h4 {
-  margin-top: 0;
-  margin-bottom: 0.5rem;
-  font-size: 0.95rem;
-  color: #444;
-}
-
-.checkbox-list {
-  background-color: #f8f9fa;
-  border-radius: 6px;
-  padding: 0.75rem;
-  border: 1px solid #e9ecef;
-  max-height: 140px; /* Más compacto para dar espacio al gráfico */
-  overflow-y: auto;
-}
-
-.x-list {
-  background-color: #f0f7ff;
-}
-
-.y-list {
-  background-color: #f7f7f7;
-}
-
-.checkbox-item {
-  margin-bottom: 0.5rem;
-}
-
-.checkbox-item:last-child {
-  margin-bottom: 0;
-}
-
-.checkbox-item label {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 0.3rem 0.6rem;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-.checkbox-item label:hover {
-  background-color: rgba(0,0,0,0.05);
-}
-
-.checkbox-item input {
-  margin-right: 0.5rem;
-}
-
-.checkbox-label {
-  flex-grow: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 0.9rem;
-}
-
-.color-indicator {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-/* GRÁFICO GIGANTE */
-.chart-container {
-  width: 100%;
-  height: 800px !important; /* ALTURA FIJA MUY GRANDE */
-  position: relative;
-  margin: 1.5rem 0;
-  border: 3px solid #d0d0d0;
-  border-radius: 12px;
-  overflow: hidden;
-  background-color: #fafafa;
-  box-shadow: inset 0 2px 8px rgba(0,0,0,0.08);
-}
-
-.chart-container canvas {
-  position: absolute !important;
-  top: 0;
-  left: 0;
-  width: 100% !important;
-  height: 100% !important;
-}
-
-.chart-message {
-  text-align: center;
-  color: #666;
-  font-style: italic;
-  background-color: #f8f9fa;
-  border-radius: 12px;
-  border: 2px dashed #ccc;
-  height: 800px; /* Misma altura que el gráfico */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chart-message p {
-  font-size: 1.4rem;
-  color: #999;
-}
-
-.chart-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 1.5rem;
-  padding: 1.2rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #eaeaea;
-}
-
-.stat {
-  flex: 1 1 100%;
-  font-size: 1.1rem;
-  padding: 1rem;
-  background-color: white;
-  border-radius: 6px;
-  text-align: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-  font-weight: 600;
-}
-
-.stat-group {
-  flex: 1;
-  min-width: 200px;
-  background-color: white;
-  border-radius: 6px;
-  padding: 1rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-}
-
-.stat-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.8rem;
-  font-size: 1rem;
-  font-weight: 600;
-  border-bottom: 2px solid #e9ecef;
-  padding-bottom: 0.5rem;
-}
-
-.stat-values {
   display: flex;
   flex-direction: column;
 }
 
-.stat-value {
-  font-size: 0.95rem;
-  color: #495057;
-  margin-bottom: 0.4rem;
-  font-weight: 500;
+.checkbox-title {
+  margin: 0 0 0.5rem 0.25rem;
+  font-size: 1rem;
+  color: #444;
+  font-weight: 600;
 }
 
-/* ESTILOS PARA LA INFORMACIÓN DEL FILTRO */
+.checkbox-list {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 0.5rem;
+  border: 1px solid #e9ecef;
+  max-height: 120px; /* Reducir altura para dejar más espacio al gráfico */
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.x-list {
+  background-color: #e7f3ff;
+  border: 1px solid #c5e3ff;
+}
+
+.y-list {
+  background-color: #f8f8f8;
+  border: 1px solid #e9e9e9;
+}
+
+.checkbox-item {
+  margin-bottom: 0;
+}
+
+.checkbox-label-container {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0.5rem 0.75rem; /* Reducir padding vertical */
+  border-radius: 6px;
+  transition: all 0.2s;
+  font-size: 0.9rem; /* Reducir un poco */
+  border: 2px solid transparent;
+  background-color: white;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+.checkbox-label-container:hover {
+  background-color: #f1f6ff;
+  border-color: #b3d7ff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.08);
+}
+
+.checkbox-input {
+  margin-right: 0.75rem;
+  width: 20px; /* Ligeramente más pequeño */
+  height: 20px; /* Ligeramente más pequeño */
+  cursor: pointer;
+  transform: scale(1.2);
+  accent-color: #0066cc;
+}
+
+.checkbox-content {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.checkbox-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #333;
+}
+
+.color-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 0.5rem;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  flex-shrink: 0;
+}
+
+/* INFORMACIÓN DE FILTRO - MÁS COMPACTA */
 .filter-info {
-  margin-bottom: 1rem;
-  text-align: center;
+  margin: 0.35rem 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .filter-badge {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-  color: white;
-  border-radius: 20px;
+  padding: 0.35rem 1rem;
+  border-radius: 16px;
   font-size: 0.9rem;
-  font-weight: 500;
-  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+  font-weight: 600;
+  background-color: #e7f3ff;
+  color: #0066cc;
+  border: 1px solid #b3d9ff;
+  box-shadow: 0 2px 5px rgba(0, 102, 204, 0.15);
 }
 
 .filter-badge.no-data {
-  background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-  box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  box-shadow: 0 2px 5px rgba(114, 28, 36, 0.15);
 }
 
+/* CONTENEDOR DE GRÁFICO - OCUPA EL MÁXIMO ESPACIO DISPONIBLE */
+.chart-container {
+  flex: 1;
+  position: relative;
+  min-height: 300px; /* Aumentar altura mínima */
+  overflow: hidden;
+  background-color: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  display: flex; /* Importante para que ocupe el espacio */
+}
+
+.chart-container canvas {
+  position: relative !important; /* Cambiar de absolute a relative */
+  width: 100% !important;
+  height: 100% !important;
+  min-height: inherit;
+}
+
+/* MENSAJE CUANDO NO SE PUEDE RENDERIZAR */
+.chart-message {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #ccc;
+  min-height: 300px; /* Aumentar altura mínima */
+}
+
+.chart-message p {
+  font-size: 1.2rem;
+  color: #999;
+  margin: 0;
+  padding: 1rem;
+}
+
+/* MODO COMPACTO ESPECÍFICO */
+.checkbox-container.compact {
+  gap: 0.5rem;
+  max-height: 150px;
+}
+
+.checkbox-container.compact .checkbox-list {
+  max-height: 100px;
+}
+
+.checkbox-container.compact .checkbox-label-container {
+  padding: 0.4rem 0.6rem;
+}
+
+.checkbox-container.compact .checkbox-input {
+  width: 18px;
+  height: 18px;
+  margin-right: 0.5rem;
+}
+
+/* RESPONSIVE PARA PANTALLAS MÁS PEQUEÑAS */
 @media (max-width: 768px) {
   .checkbox-container {
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.5rem;
   }
   
-  .chart-container {
-    height: 600px !important; /* Más pequeño pero aún grande en móviles */
+  .checkbox-list {
+    max-height: 100px;
   }
   
-  .chart-message {
-    height: 600px;
+  .checkbox-label-container {
+    padding: 0.4rem;
+    font-size: 0.85rem;
   }
   
-  .chart-stats {
-    flex-direction: column;
+  .checkbox-input {
+    width: 16px;
+    height: 16px;
+    transform: scale(1.1);
   }
   
-  .stat-group {
-    min-width: auto;
+  .checkbox-text {
+    font-size: 0.85rem;
+  }
+  
+  .color-indicator {
+    width: 15px;
+    height: 16px;
   }
 }
 </style>
