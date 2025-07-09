@@ -684,13 +684,13 @@ const handleFilterChange = (filtered: Record<string, any>[]) => {
   left: 0;
   top: 60px;
   width: 300px;
-  height: calc(100vh - 60px);
+  height: 100%;
   background: white;
   border-right: 1px solid #e9ecef;
   box-shadow: 2px 0 10px rgba(0,0,0,0.05);
   transition: width 0.3s ease;
   z-index: 1000;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .sidebar-collapsed {
@@ -939,7 +939,9 @@ const handleFilterChange = (filtered: Record<string, any>[]) => {
 .main-content {
   flex: 1;
   transition: margin-left 0.3s ease;
-  min-height: calc(100vh - 60px);
+  min-height: 100%;
+  overflow-y: auto;
+  position: relative;
 }
 
 .main-with-sidebar {
@@ -1110,90 +1112,75 @@ const handleFilterChange = (filtered: Record<string, any>[]) => {
   min-height: 400px;
   display: flex;
   flex-direction: column;
-  overflow: visible; /* Cambiado de hidden a visible */
-  height: auto; /* Cambiado de fixed a auto */
-  min-height: calc(100vh - 220px); /* Altura mínima */
+  overflow: visible;
+  height: auto;
+  margin-bottom: 2rem;
 }
 
-/* LAYOUT HORIZONTAL PARA GRÁFICOS - 50/50 EXACTO */
+/* LAYOUT HORIZONTAL PARA GRÁFICOS - ALTURA AUTOMÁTICA */
 .charts-view-horizontal {
   display: flex;
   width: 100%;
   gap: 1rem;
-  flex-wrap: wrap; /* Permite que se envuelvan en pantallas pequeñas */
+  min-height: 700px;
+  flex-wrap: wrap;
 }
 
-/* PANEL IZQUIERDO: FILTROS Y CONSULTAS - 50% */
+/* PANELES - ALTURA AUTOMÁTICA */
 .left-panel {
-  flex: 1;
-  min-width: 450px; /* Ancho mínimo */
-  width: calc(50% - 0.5rem); /* 50% menos la mitad del gap */
-  min-height: 700px; /* Altura mínima */
-}
-
-/* PANEL DERECHO: GRÁFICO - 50% */
-.right-panel {
-  min-width: 0;
-  height: 100%;
+  flex: 1 1 0;
   width: 50%;
+  min-width: 0;
+  max-width: 50%;
+  margin-bottom: 1rem;
 }
 
-/* CONTENEDOR DE PANEL */
+.right-panel {
+  flex: 1 1 0;
+  width: 50%;
+  min-width: 0;
+  max-width: 50%;
+  margin-bottom: 1rem;
+}
+
+/* CONTENEDOR DE PANEL - ALTURA MÍNIMA */
 .panel-box {
+  min-height: 700px;
   display: flex;
   flex-direction: column;
-  height: 100%;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   background-color: white;
 }
 
-/* CUERPO DEL PANEL */
-.panel-body {
+/* CONTENEDOR DE TABLA - PERMITIR SCROLL */
+.table-container {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
+  overflow-y: auto;
+  min-height: 300px;
+  max-height: 500px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: white;
 }
 
-/* CUERPO DEL PANEL ESPECÍFICO PARA GRÁFICO */
-.chart-panel-body {
-  padding: 1rem;
-  overflow: hidden;
-}
-
-/* AJUSTE RESPONSIVE PARA MANTENER 50/50 HASTA CIERTO PUNTO */
-@media (min-width: 1600px) {
-  .left-panel, .right-panel {
-    width: 50%;
-    flex: 1;
-  }
-}
-
-@media (max-width: 1200px) {
-  .left-panel, .right-panel {
-    width: 50%;
-    flex: 1;
-  }
-}
-
+/* RESPONSIVE - AJUSTES PARA SCROLL */
 @media (max-width: 992px) {
   .charts-view-horizontal {
     flex-direction: column;
+    min-height: auto;
   }
   
-  .left-panel {
-    flex: 1;
-    height: 50%;
-    width: 100%;
-  }
-  
+  .left-panel,
   .right-panel {
-    flex: 1;
-    height: 50%;
     width: 100%;
+    max-width: 100%;
+    min-height: 600px;
+  }
+  
+  .panel-box {
+    min-height: 600px;
   }
 }
 </style>
