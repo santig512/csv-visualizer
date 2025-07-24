@@ -31,3 +31,7 @@ npm run dev
 ```sh
 npm run build
 ```
+
+```bash
+echo $SHELL
+```
